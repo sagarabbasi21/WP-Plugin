@@ -18,6 +18,8 @@ define('GOPAYFAST_MERCHANT_NAME', 'Association of Fitness Professionals');
 require_once GTR_PLUGIN_DIR . 'includes/helpers.php';
 require_once GTR_PLUGIN_DIR . '/includes/payfast/class-gtr-payfast.php';
 require_once GTR_PLUGIN_DIR . '/includes/payfast/class-gtr-payfast-webhook.php';
+require_once GTR_PLUGIN_DIR . 'includes/admin-trainer-filters.php';
+require_once GTR_PLUGIN_DIR . 'includes/cron-pending-notifications.php';
 
 GTR_PayFast_Webhook::init();
 GTR_PayFast::init();
@@ -1863,13 +1865,39 @@ function notify_trainer_on_approval($user_id)
         if (!$user)
             return;
 
-        $to = $user->user_email;
-        $subject = "Your Trainer Account Has Been Approved";
+        $to         = $user->user_email;
+        $first_name = $user->first_name ?: $user->display_name;
+        $username   = $user->user_login;
+        $login_url  = 'https://afp-pk.org/trainer-account/';
+        $reset_url  = wp_lostpassword_url($login_url);
 
-        $message = "Hello " . $user->first_name . ",\n\n"
-            . "Good news! Your trainer account has been approved.\n\n"
-            . "You are now active in the member directory and can log in at any time.\n\n"
-            . "Thank you,\nAssociation of Fitness Professionals\n";
+        if ($new_status === 'Active') {
+            $subject = "Your Trainer Account Has Been Approved";
+            $message = "Hello {$first_name},\n\n"
+                . "Good news! Your trainer account has been approved.\n\n"
+                . "Status: Active\n\n"
+                . "You are now active in the member directory and can log in at any time.\n\n"
+                . "Login here:\n{$login_url}\n\n"
+                . "Login Credentials:\n"
+                . "Username: {$username}\n"
+                . "Email: {$user->user_email}\n"
+                . "Password: use the password you created during registration.\n"
+                . "Forgot it? Reset here: {$reset_url}\n\n"
+                . "Best Regards,\nAssociation of Fitness Professionals\n";
+        } else { // Provisional
+            $subject = "Your Trainer Account Status: Provisional";
+            $message = "Hello {$first_name},\n\n"
+                . "Your trainer account has been reviewed.\n\n"
+                . "Status: Provisional\n\n"
+                . "Your account has been marked as Provisional because some of your details or submitted documents have issues. Please review and update your information.\n\n"
+                . "Login here to update your information:\n{$login_url}\n\n"
+                . "Login Credentials:\n"
+                . "Username: {$username}\n"
+                . "Email: {$user->user_email}\n"
+                . "Password: use the password you created during registration.\n"
+                . "Forgot it? Reset here: {$reset_url}\n\n"
+                . "Best Regards,\nAssociation of Fitness Professionals\n";
+        }
 
         wp_mail($to, $subject, $message);
 
@@ -3026,7 +3054,7 @@ function auto_inactivate_expired_trainers()
             update_user_meta($user->ID, 'is_directory_visible', 'no');
 
             $subject = "Your Trainer Account Has Expired";
-            $msg = "Hello " . $user->first_name . ",\n\nYour trainer membership has expired.\n\nPlease renew to reactivate your account.\n\nRegards,\nAssociation of Fitness Professionals\n";
+            $msg = "Hello " . $user->first_name . ",\n\nYour trainer membership has expired.\n\nPlease renew to reactivate your account.\n\nBest Regards,\nAssociation of Fitness Professionals\n";
             wp_mail($user->user_email, $subject, $msg);
         }
     }
@@ -3107,7 +3135,7 @@ function send_trainer_expiry_reminders()
             wp_mail(
                 $user->user_email,
                 "Your Trainer Membership Expires in 7 Days",
-                "Hello " . $user->first_name . ",\n\nYour trainer membership will expire in 7 days.\nPlease renew to avoid expiration.\n\nRegards,\nAssociation of Fitness Professionals"
+                "Hello " . $user->first_name . ",\n\nYour trainer membership will expire in 7 days.\nPlease renew to avoid expiration.\n\nBest Regards,\nAssociation of Fitness Professionals"
             );
         }
 
@@ -3115,7 +3143,7 @@ function send_trainer_expiry_reminders()
             wp_mail(
                 $user->user_email,
                 "Your Trainer Membership Expires in 3 Days",
-                "Hello " . $user->first_name . ",\n\nThis is a reminder that your membership expires in 3 days.\nRenew soon.\n\nRegards,\nAssociation of Fitness Professionals"
+                "Hello " . $user->first_name . ",\n\nThis is a reminder that your membership expires in 3 days.\nRenew soon.\n\nBest Regards,\nAssociation of Fitness Professionals"
             );
         }
 
@@ -3147,6 +3175,7 @@ function gym_trainer_send_incomplete_reminder($user_id)
     $registration_url = add_query_arg([
         'trainer_resume' => $user_id,
         'key' => $token,
+        'step' => $progress,
     ], $base_url);
 
     $first_name = $user->first_name ?: $user->display_name;
@@ -3158,7 +3187,7 @@ function gym_trainer_send_incomplete_reminder($user_id)
         . "{$registration_url}\n\n"
         . "Once completed, our team will review your details and activate your account.\n\n"
         . "If you need help at any stage, feel free to reach out.\n\n"
-        . "Regards,\n"
+        . "Best Regards,\n"
         . "Association of Fitness Professionals Support Team";
 
     $sent = wp_mail($user->user_email, $subject, $message);

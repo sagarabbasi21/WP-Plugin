@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(wc:*)",
+      "Bash(php -l gym-trainer-registration.php)",
+      "Bash(php -l includes/admin-trainer-filters.php)",
+      "Bash(php -l includes/cron-pending-notifications.php)"
+    ]
+  }
+}
